@@ -7,24 +7,38 @@ package object via:
     Params,
     Query,
     RouteMatcher,
-    Route,
+    // Route,
     Param,
     ParamInt,
     ParamStr,
     ParamLong,
     ParamPaths,
-    RouteEntry,
+    // RouteEntry,
     RouteInfo,
-    Enter,
-    Leave,
+    // Enter,
+    // Leave,
     Method,
-    Controller,
-    Handler,
-    Dispatcher,
-    MiddlewareEnter,
-    MiddlewareLeave,
+    // Controller,
+    // Handler,
+    // Dispatcher,
+    // MiddlewareEnter,
+    // MiddlewareLeave,
     |>
   }
+
+  object types:
+    export io.via.types.{
+      Route,
+      RouteEntry,
+      Enter,
+      Leave,
+      Controller,
+      HttpHandler,
+      Dispatcher,
+      MiddlewareEnter,
+      MiddlewareLeave
+    }
+
   export Path.*
   export Router.{leave, enter, route, verbs}
   export io.via.core.{RequestBuilder, Router}

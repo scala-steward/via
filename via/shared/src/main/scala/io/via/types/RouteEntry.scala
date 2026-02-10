@@ -19,7 +19,7 @@ case class RouteEntryHandler[Req, Resp](
     override val route: Route,
     override val leave: Option[Leave[Req, Resp]] = None,
     override val enter: Option[Enter[Req, Resp]] = None,
-    handler: Handler[Req, Resp]
+    handler: HttpHandler[Req, Resp]
 ) extends RouteEntry[Req, Resp]:
 
   override def copyWithLeave(m: Leave[Req, Resp]): RouteEntry[Req, Resp] =

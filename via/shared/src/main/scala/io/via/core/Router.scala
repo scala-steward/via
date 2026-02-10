@@ -3,14 +3,13 @@ package io.via.core
 import io.via.types.*
 import io.via.types.Path.{int, param, regex, root, tail}
 
-import scala.reflect.TypeTest
 import io.via.types.Method.*
 import RouteChain.*
 import io.via.types.{
   Controller,
   Dispatcher,
   Enter,
-  Handler,
+  HttpHandler,
   Leave,
   Method,
   MiddlewareEnter,
@@ -27,8 +26,8 @@ import io.via.types.{
 import scala.annotation.tailrec
 
 /** Rule to create a new Request, base on route info and route extra
-  * information. Route NativeReq is the necessary low-level information to create a
-  * new Request. This should be provided by server implementation.
+  * information. Route NativeReq is the necessary low-level information to
+  * create a new Request. This should be provided by server implementation.
   * @tparam Req
   *   Request type
   * @tparam NativeReq
@@ -38,11 +37,9 @@ trait RequestBuilder[Req, NativeReq]:
 
   def build(routeInfo: RouteInfo, req: Option[NativeReq]): Req
 
-case class Router[Req, Resp, NativeReq](routes: RouteEntry[Req, Resp]*)(using
-    requestBuilder: RequestBuilder[Req, NativeReq],
-    ttReq: TypeTest[Matchable, Req],
-    ttResp: TypeTest[Matchable, Resp]
-):
+case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
+    routes: RouteEntry[Req, Resp]*
+)(using RequestBuilder[Req, NativeReq]):
 
   /** Dispatch route
     * @param target
@@ -65,7 +62,11 @@ case class Router[Req, Resp, NativeReq](routes: RouteEntry[Req, Resp]*)(using
     * @return
     *   The response
     */
-  def dispatch(method: Method, target: String, nativeReq: NativeReq): Option[Resp] =
+  def dispatch(
+      method: Method,
+      target: String,
+      nativeReq: NativeReq
+  ): Option[Resp] =
     doRequest(method, target, Some(nativeReq))
 
   /** Dispatch route
@@ -125,12 +126,12 @@ case class Router[Req, Resp, NativeReq](routes: RouteEntry[Req, Resp]*)(using
       routeFound.params,
       routeFound.query
     )
-    val req = requestBuilder.build(routeInfo, nativeReq)
+    val req = summon[RequestBuilder[Req, NativeReq]].build(routeInfo, nativeReq)
     val resp =
       entry match
         case r: RouteEntryHandler[Req, Resp] =>
           val resp =
-            applyEnter(method, req, r.enter) match
+            applyEnter(method, req, r.enter).runtimeChecked match
               case newReq: Req =>
                 r.handler.handle(newReq)
               case resp: Resp => resp
@@ -140,16 +141,16 @@ case class Router[Req, Resp, NativeReq](routes: RouteEntry[Req, Resp]*)(using
         case r: RouteEntryDispatcher[Req, Resp] =>
           val resp =
             applyEnter(method, req, r.enter) match
-              case ttReq(newReq) =>
+              case newReq: Req =>
                 r.dispatcher(newReq)
-              case ttResp(resp) => resp
+              case resp: Resp => resp
 
           resp |> Some.apply
 
         case r: RouteEntryController[Req, Resp] =>
           applyEnter(method, req, r.enter) match
-            case ttResp(resp) => resp |> Some.apply
-            case ttReq(newReq) =>
+            case resp: Resp => resp |> Some.apply
+            case newReq: Req =>
               val crlResult =
                 method match
                   case GET     => r.controller.get(newReq)
@@ -192,9 +193,9 @@ case class Router[Req, Resp, NativeReq](routes: RouteEntry[Req, Resp]*)(using
         if enter.methods.exists(m => m == ANY || m == method)
         then
           enter.handler(req) match
-            case ttReq(newReq) =>
+            case newReq: Req =>
               applyEnter(method, newReq, enter.next)
-            case ttResp(resp) =>
+            case resp: Resp =>
               resp
         else applyEnter(method, req, enter.next)
       case _ => req
@@ -254,22 +255,22 @@ object Router:
     RouteEntryController(method :: Nil, route(path), controller = c)
 
   def route[Req, Resp](path: Path)(
-      c: Handler[Req, Resp]
+      c: HttpHandler[Req, Resp]
   ): RouteEntry[Req, Resp] =
     route(ANY, path)(c)
 
   def route[Req, Resp](method: Method, path: Path)(
-      c: Handler[Req, Resp]
+      c: HttpHandler[Req, Resp]
   ): RouteEntry[Req, Resp] =
     route(method :: Nil, path)(c)
 
   def route[Req, Resp](methods: Seq[Method], path: Path)(
-      f: Handler[Req, Resp]
+      f: HttpHandler[Req, Resp]
   ): RouteEntry[Req, Resp] =
     RouteEntryHandler(methods, route(path), handler = f)
 
   def route[Req, Resp](method: Method, path: String)(
-      f: Handler[Req, Resp]
+      f: HttpHandler[Req, Resp]
   ): RouteEntry[Req, Resp] =
     RouteEntryHandler(method :: Nil, route(path), handler = f)
 
@@ -303,7 +304,7 @@ object Router:
   def route[Req, Resp](
       methods: Seq[Method],
       r: Route,
-      c: Handler[Req, Resp]
+      c: HttpHandler[Req, Resp]
   ): RouteEntry[Req, Resp] =
     RouteEntryHandler(methods, r, handler = c)
 

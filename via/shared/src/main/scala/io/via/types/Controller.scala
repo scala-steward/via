@@ -104,7 +104,7 @@ trait Controller[Req, Resp]:
   * @tparam Resp
   *   Response type
   */
-trait Handler[Req, Resp]:
+trait HttpHandler[Req, Resp]:
 
   /** Handle all http methods
     * @param req

@@ -17,7 +17,7 @@ val sharedSettings = Seq(
 ThisBuild / name := "via"
 ThisBuild / organization := "io.via"
 ThisBuild / version := "0.0.1"
-ThisBuild / scalaVersion := "3.8.0-RC3"
+ThisBuild / scalaVersion := "3.8.1"
 
 lazy val via =
   // select supported platforms
