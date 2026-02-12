@@ -1,6 +1,5 @@
 package io.via.types
 
-
 import scala.collection.mutable
 
 case class Route(
