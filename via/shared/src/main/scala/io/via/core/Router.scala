@@ -2,7 +2,6 @@ package io.via.core
 
 import io.via.types.*
 import io.via.types.Path.{int, param, regex, root, tail}
-
 import io.via.types.Method.*
 import RouteChain.*
 import io.via.types.{
@@ -24,6 +23,7 @@ import io.via.types.{
 }
 
 import scala.annotation.tailrec
+import scala.reflect.TypeTest
 
 /** Rule to create a new Request, base on route info and route extra
   * information. Route NativeReq is the necessary low-level information to
@@ -38,8 +38,14 @@ trait RequestBuilder[Req, NativeReq]:
   def build(routeInfo: RouteInfo, req: Option[NativeReq]): Req
 
 case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
-    routes: RouteEntry[Req, Resp]*
+    entries: RouteEntry[Req, Resp]*
 )(using RequestBuilder[Req, NativeReq]):
+
+  private type Result =
+    TypeTest[Any, Req] ?=> TypeTest[Any, Resp] ?=> Option[Resp]
+
+  private type ReqOrResp =
+    TypeTest[Any, Req] ?=> TypeTest[Any, Resp] ?=> Req | Resp
 
   /** Dispatch route
     * @param target
@@ -49,7 +55,7 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
     * @return
     *   The response
     */
-  def dispatch(target: String, nativeReq: NativeReq): Option[Resp] =
+  def dispatch(target: String, nativeReq: NativeReq): Result =
     dispatch(ANY, target, nativeReq)
 
   /** Dispatch route
@@ -66,7 +72,7 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
       method: Method,
       target: String,
       nativeReq: NativeReq
-  ): Option[Resp] =
+  ): Result =
     doRequest(method, target, Some(nativeReq))
 
   /** Dispatch route
@@ -75,7 +81,7 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
     * @return
     *   The response
     */
-  def dispatch(target: String): Option[Resp] =
+  def dispatch(target: String): Result =
     dispatch(ANY, target)
 
   /** Dispatch route
@@ -89,22 +95,22 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
   def dispatch(
       method: Method,
       target: String
-  ): Option[Resp] =
+  ): Result =
     doRequest(method, target, None)
 
   private def doRequest(
       method: Method,
       target: String,
       nativeReq: Option[NativeReq]
-  ): Option[Resp] =
+  ): Result =
 
-    val rts = routes.map { entry =>
+    val routes = entries.map { entry =>
       entry.route.copy(
         methods = entry.methods,
         tag = Some(entry)
       )
     }
-    RouteChain.chain(method, target, rts) match
+    RouteChain.chain(method, target, routes) match
       case routeFound: RouteFound =>
         doRequest(method, target, routeFound, nativeReq)
       case RouteNotFound() => None
@@ -114,7 +120,7 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
       target: String,
       routeFound: RouteFound,
       nativeReq: Option[NativeReq]
-  ): Option[Resp] =
+  ): Result =
 
     val route = routeFound.route
     val entry = route.tag.get.asInstanceOf[RouteEntry[Req, Resp]]
@@ -178,17 +184,20 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
 
   /** Apply enter middleware
     * @param method
+    *   http verb
     * @param req
-    * @param enterOpt
+    *   http request
+    * @param enter
+    *   middleware chain
     * @return
     */
   @tailrec
   private def applyEnter(
       method: Method,
       req: Req,
-      enterOpt: Option[Enter[Req, Resp]]
-  ): Resp | Req =
-    enterOpt match
+      enter: Option[Enter[Req, Resp]]
+  ): ReqOrResp =
+    enter match
       case Some(enter) =>
         if enter.methods.exists(m => m == ANY || m == method)
         then
@@ -202,9 +211,13 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
 
   /** Apply leave middleware
     * @param method
+    *   http verb
     * @param req
+    *   http request
     * @param resp
-    * @param leaveOpt
+    *   http response
+    * @param leave
+    *   middleware chain
     * @return
     */
   @tailrec
@@ -212,9 +225,9 @@ case class Router[Req <: Matchable, Resp <: Matchable, NativeReq <: Matchable](
       method: Method,
       req: Req,
       resp: Resp,
-      leaveOpt: Option[Leave[Req, Resp]]
+      leave: Option[Leave[Req, Resp]]
   ): Resp =
-    leaveOpt match
+    leave match
       case Some(leave) =>
         val newResp =
           if leave.methods.exists(m => m == ANY || m == method)

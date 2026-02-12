@@ -1,4 +1,5 @@
 val sharedSettings = Seq(
+  version := "0.0.1",
   scalacOptions ++= Seq(
     "-new-syntax",
     // "-no-indent",
@@ -16,7 +17,6 @@ val sharedSettings = Seq(
 
 ThisBuild / name := "via"
 ThisBuild / organization := "io.via"
-ThisBuild / version := "0.0.1"
 ThisBuild / scalaVersion := "3.8.1"
 
 lazy val via =
@@ -31,3 +31,5 @@ lazy val via =
     )
     // configure Scala-Native settings
     .nativeSettings( /* ... */ ) // defined in sbt-scala-native
+
+publishLocalConfiguration ~= { _.withOverwrite(true) }
