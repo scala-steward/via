@@ -27,7 +27,7 @@ lazy val via =
     .in(file("via"))
     .settings(sharedSettings *)
     .jvmSettings(
-      libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test"
+      libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.20" % "test"
     )
     // configure Scala-Native settings
     .nativeSettings( /* ... */ ) // defined in sbt-scala-native
